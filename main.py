@@ -923,7 +923,80 @@ def mostrar_calendario(usuario):
                 st.write(f"**Ticket:** {evento[6]}")
                 st.write(f"**Descrição:** {evento[2]}")
                 st.write(f"**Criado por:** {evento[7]}")
+# Função de busca alternativa - CORREÇÃO COMPLETA
+def buscar_na_web(consulta, max_resultados=5):
+    """Buscar usando DuckDuckGo - Versão Corrigida"""
+    try:
+        # Método 1: Tentar com a versão mais recente
+        from duckduckgo_search import DDGS
+        
+        with DDGS() as ddgs:
+            resultados = []
+            for resultado in ddgs.text(consulta, max_results=max_resultados):
+                # Garantir que temos os campos esperados
+                resultado_formatado = {
+                    'title': resultado.get('title', 'Sem título'),
+                    'href': resultado.get('href', ''),
+                    'body': resultado.get('body', 'Sem descrição')
+                }
+                resultados.append(resultado_formatado)
+            return resultados
+            
+    except Exception as e:
+        st.error(f"Erro na busca DuckDuckGo: {str(e)}")
+        
+        # Método 2: Fallback para requests + BeautifulSoup
+        try:
+            st.info("Tentando método alternativo de busca...")
+            return buscar_alternativa(consulta, max_resultados)
+        except Exception as e2:
+            st.error(f"Busca alternativa também falhou: {str(e2)}")
+            return []
 
+def buscar_alternativa(consulta, max_resultados=5):
+    """Método alternativo de busca usando requests"""
+    try:
+        import urllib.parse
+        
+        # Codificar a consulta para URL
+        consulta_codificada = urllib.parse.quote(consulta)
+        url = f"https://html.duckduckgo.com/html/?q={consulta_codificada}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        resultados = []
+        links = soup.find_all('a', class_='result__a', limit=max_resultados)
+        
+        for link in links:
+            titulo = link.get_text(strip=True)
+            href = link.get('href', '')
+            
+            # Encontrar a descrição
+            descricao_element = link.find_next('a', class_='result__snippet')
+            descricao = descricao_element.get_text(strip=True) if descricao_element else "Sem descrição"
+            
+            resultados.append({
+                'title': titulo,
+                'href': href,
+                'body': descricao
+            })
+        
+        return resultados
+        
+    except Exception as e:
+        st.error(f"Busca alternativa falhou: {str(e)}")
+        return []
 def mostrar_painel_admin(usuario):
     if usuario['perfil'] != 'admin':
         st.error("Acesso negado. Privilégios de administrador necessários.")
